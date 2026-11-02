@@ -31,6 +31,7 @@ mixins/horizon_tech/               the native code
   glue.rs                          the logic connected to Horizon's hook points
   *.rs, horizon-mixin.toml         one small helper per hook point
 compatibility.json                 the Horizon and horizon-mixins commits it is built on, and the hook API it needs
+tools/horizon.py                   applies the mixins to the pinned Horizon and checks, tests or builds the game
 tools/package.py                   builds target/horizon_tech-<version>.hmod and .hnmod
 tools/textures.py                  draws the block textures
 ```
@@ -42,6 +43,19 @@ cargo test                         # the logic's tests, no Horizon needed
 cargo clippy --all-targets -- -D warnings
 python3 tools/package.py           # target/horizon_tech-0.1.0.hmod and .hnmod
 python3 tools/textures.py          # redraw the textures (needs Pillow)
+```
+
+Compile it into the game (Linux; Horizon and horizon-mixins at the commits in `compatibility.json`, beside this repo):
+
+```sh
+git clone https://github.com/horizon-rust/horizon ../horizon
+git clone https://github.com/horizon-rust/horizon-mixins ../horizon-mixins
+git -C ../horizon-mixins checkout ddd9700b21997c95d95ac6ee5ecafe3830cf622a
+python3 tools/horizon.py stage     # export the pinned Horizon and apply the mixins
+cargo fetch --locked --manifest-path target/mixins/modded/Cargo.toml
+python3 tools/horizon.py check     # cargo check of the game with the mod
+python3 tools/horizon.py test      # the logic's tests, inside the game
+python3 tools/horizon.py build     # target/horizon-cargo/fast/horizon-client
 ```
 
 Try it in the game: put `target/horizon_tech-0.1.0.hmod` in the game folder's `horizon-mods/` and the `.hnmod` in
