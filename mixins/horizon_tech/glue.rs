@@ -239,9 +239,6 @@ fn find_recipe(game: &Game<'_>, kind: &'static str, input: &ItemStack) -> Found 
     })
 }
 
-/// The most of one item a machine's output slot holds.
-const STACK: u32 = 64;
-
 fn machine(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, machine: m::Machine) {
     let mut state = m::MachineState {
         energy: int(&entity.nbt, m::ENERGY_KEY),
@@ -258,13 +255,17 @@ fn machine(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, mach
         .as_ref()
         .and_then(|s| find_recipe(game, machine.recipe_type(), s));
     let output = entity.items.get(m::OUTPUT_SLOT).and_then(Option::as_ref);
+    // A result holds no more than its item's stack (a bucket: 16, a tool: 1).
+    let stack = recipe
+        .as_ref()
+        .map_or(64, |(r, _)| game.native_max_stack_size(&r.item).unwrap_or(1));
     let work = recipe.as_ref().map(|(result, time)| m::Work {
         time: *time,
         fits: m::output_fits(
             output.map(|o| (&*o.item, o.count)),
             &result.item,
             result.count,
-            STACK,
+            stack,
         ) && output.is_none_or(|o| o.damage == result.damage && o.extra == result.extra),
     });
     let tick = m::machine_tick(machine, state, work);
