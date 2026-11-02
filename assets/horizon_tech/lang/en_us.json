@@ -1,0 +1,8 @@
+{
+  "block.horizon_tech.coal_generator": "Coal Generator",
+  "block.horizon_tech.battery": "Battery",
+  "block.horizon_tech.energy_cable": "Energy Cable",
+  "itemGroup.horizon_tech.horizon_tech": "Horizon Tech",
+  "container.horizon_tech.generator": "Coal Generator",
+  "container.horizon_tech.battery": "Battery"
+}
