@@ -114,7 +114,7 @@ fn front(game: &Game<'_>, pos: [i32; 3]) -> Option<usize> {
         .and_then(m::side_named)
 }
 
-pub fn tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
+pub(super) fn tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
     let Some(kind) = m::Kind::of(&entity.id) else {
         return;
     };
@@ -252,7 +252,7 @@ fn draw_bar(
     }
 }
 
-pub fn screen_draw(
+pub(super) fn screen_draw(
     game: &Game<'_>,
     block: &str,
     data: &[i32],

@@ -3,9 +3,6 @@
 // `crate::game::horizon_tech`; `glue.rs` connects it to the hook points.
 // Module payloads can't carry inner attributes or `//!` comments.
 
-pub const ID: &str = "horizon_tech";
-pub const NAME: &str = "Horizon Tech";
-
 pub const GENERATOR: &str = "horizon_tech:coal_generator";
 pub const BATTERY: &str = "horizon_tech:battery";
 pub const CABLE: &str = "horizon_tech:energy_cable";
