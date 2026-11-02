@@ -1,0 +1,8 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "#minecraft:iron_ores",
+  "result": {
+    "id": "horizon_tech:iron_dust",
+    "count": 2
+  }
+}

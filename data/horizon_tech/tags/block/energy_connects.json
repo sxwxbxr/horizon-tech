@@ -1,3 +1,10 @@
 {
-  "values": ["horizon_tech:coal_generator", "horizon_tech:battery"]
+  "values": [
+    "horizon_tech:coal_generator",
+    "horizon_tech:reinforced_generator",
+    "horizon_tech:overcharged_generator",
+    "horizon_tech:battery",
+    "horizon_tech:crusher",
+    "horizon_tech:induction_smelter"
+  ]
 }

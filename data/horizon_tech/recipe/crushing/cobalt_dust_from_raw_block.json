@@ -1,0 +1,9 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "horizon_tech:raw_cobalt_block",
+  "result": {
+    "id": "horizon_tech:cobalt_dust",
+    "count": 18
+  },
+  "time": 600
+}

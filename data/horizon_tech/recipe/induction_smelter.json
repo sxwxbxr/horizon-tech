@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "IKI",
+    "KFK",
+    "IRI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "K": "horizon_tech:cobalt_ingot",
+    "F": "minecraft:blast_furnace",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "horizon_tech:induction_smelter"
+  }
+}

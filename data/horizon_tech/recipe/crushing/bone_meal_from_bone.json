@@ -1,0 +1,9 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "minecraft:bone",
+  "result": {
+    "id": "minecraft:bone_meal",
+    "count": 6
+  },
+  "time": 40
+}

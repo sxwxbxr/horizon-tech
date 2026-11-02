@@ -1,0 +1,11 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": [
+    "horizon_tech:cobalt_ore",
+    "horizon_tech:deepslate_cobalt_ore"
+  ],
+  "result": {
+    "id": "horizon_tech:cobalt_dust",
+    "count": 2
+  }
+}

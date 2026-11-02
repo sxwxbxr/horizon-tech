@@ -1,0 +1,10 @@
+{
+  "type": "horizon_tech:smelting",
+  "ingredient": [
+    "horizon_tech:cobalt_ore",
+    "horizon_tech:deepslate_cobalt_ore"
+  ],
+  "result": {
+    "id": "horizon_tech:cobalt_ingot"
+  }
+}

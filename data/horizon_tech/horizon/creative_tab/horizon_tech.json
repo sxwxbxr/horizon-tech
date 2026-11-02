@@ -1,5 +1,23 @@
 {
   "title": "Horizon Tech",
   "icon": "horizon_tech:coal_generator",
-  "items": ["horizon_tech:coal_generator", "horizon_tech:battery", "horizon_tech:energy_cable"]
+  "items": [
+    "horizon_tech:coal_generator",
+    "horizon_tech:reinforced_generator",
+    "horizon_tech:overcharged_generator",
+    "horizon_tech:battery",
+    "horizon_tech:energy_cable",
+    "horizon_tech:crusher",
+    "horizon_tech:induction_smelter",
+    "horizon_tech:cobalt_ore",
+    "horizon_tech:deepslate_cobalt_ore",
+    "horizon_tech:raw_cobalt_block",
+    "horizon_tech:cobalt_block",
+    "horizon_tech:raw_cobalt",
+    "horizon_tech:cobalt_ingot",
+    "horizon_tech:cobalt_dust",
+    "horizon_tech:iron_dust",
+    "horizon_tech:gold_dust",
+    "horizon_tech:copper_dust"
+  ]
 }

@@ -1,0 +1,9 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "minecraft:blaze_rod",
+  "result": {
+    "id": "minecraft:blaze_powder",
+    "count": 4
+  },
+  "time": 60
+}

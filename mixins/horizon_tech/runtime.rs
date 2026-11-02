@@ -4,32 +4,132 @@
 // Module payloads can't carry inner attributes or `//!` comments.
 
 pub const GENERATOR: &str = "horizon_tech:coal_generator";
+pub const REINFORCED_GENERATOR: &str = "horizon_tech:reinforced_generator";
+pub const OVERCHARGED_GENERATOR: &str = "horizon_tech:overcharged_generator";
 pub const BATTERY: &str = "horizon_tech:battery";
 pub const CABLE: &str = "horizon_tech:energy_cable";
+pub const CRUSHER: &str = "horizon_tech:crusher";
+pub const SMELTER: &str = "horizon_tech:induction_smelter";
 
 /// The menu types in `data/horizon_tech/horizon/menu/`.
 pub const GENERATOR_MENU: &str = "horizon_tech:generator";
 pub const BATTERY_MENU: &str = "horizon_tech:battery";
+pub const MACHINE_MENU: &str = "horizon_tech:machine";
+
+/// The recipe types the machines read (`data/<ns>/recipe/*.json`), so data
+/// packs and other mods can add to them.
+pub const CRUSHING: &str = "horizon_tech:crushing";
+pub const SMELTING: &str = "horizon_tech:smelting";
 
 /// The NBT key the engine keeps a block's energy under (`SimpleEnergyHandler`).
 pub const ENERGY_KEY: &str = "energy";
 pub const BURN_KEY: &str = "burn";
 pub const BURN_TOTAL_KEY: &str = "burn_total";
+pub const PROGRESS_KEY: &str = "progress";
+/// The item a machine's progress belongs to: another item starts over.
+pub const WORKING_KEY: &str = "working";
+
+/// A generator's tier: how fast it burns and how much each fuel gives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tier {
+    Basic,
+    Reinforced,
+    Overcharged,
+}
+
+impl Tier {
+    /// Energy (FE) a burning generator makes each tick.
+    pub fn rate(self) -> i32 {
+        match self {
+            Tier::Basic => 40,
+            Tier::Reinforced => 120,
+            Tier::Overcharged => 400,
+        }
+    }
+
+    /// Fuel ticks it burns each tick: a higher tier burns faster but gets
+    /// more out of each fuel tick (`rate / speed`: 40, 60, 80 FE).
+    pub fn speed(self) -> i32 {
+        match self {
+            Tier::Basic => 1,
+            Tier::Reinforced => 2,
+            Tier::Overcharged => 5,
+        }
+    }
+
+    pub fn capacity(self) -> i32 {
+        match self {
+            Tier::Basic => 50_000,
+            Tier::Reinforced => 200_000,
+            Tier::Overcharged => 1_000_000,
+        }
+    }
+
+    /// The most it pushes out each tick, over all its sides.
+    pub fn push(self) -> i32 {
+        self.rate() * 10
+    }
+
+    /// Energy one fuel tick gives.
+    pub fn per_fuel_tick(self) -> i32 {
+        self.rate() / self.speed()
+    }
+}
+
+/// A machine that works one item at a time on energy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Machine {
+    /// Ore and raw ore into two dusts, stone into gravel into sand.
+    Crusher,
+    /// Dusts, raw ore and ore into ingots, faster than a furnace.
+    Smelter,
+}
+
+impl Machine {
+    pub fn recipe_type(self) -> &'static str {
+        match self {
+            Machine::Crusher => CRUSHING,
+            Machine::Smelter => SMELTING,
+        }
+    }
+
+    /// Energy it uses each tick it works.
+    pub fn rate(self) -> i32 {
+        match self {
+            Machine::Crusher => 20,
+            Machine::Smelter => 30,
+        }
+    }
+}
+
+/// Ticks a machine recipe takes when its file gives no `time`.
+pub const MACHINE_TIME: i32 = 100;
+/// How much a machine holds, and takes in per call.
+pub const MACHINE_CAPACITY: i32 = 20_000;
+pub const MACHINE_INSERT: i32 = 1_000;
+/// A machine's slots.
+pub const INPUT_SLOT: usize = 0;
+pub const OUTPUT_SLOT: usize = 1;
 
 /// What kind of machine a block id is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    Generator,
+    Generator(Tier),
     Battery,
     Cable,
+    Machine(Machine),
 }
 
 impl Kind {
     pub fn of(block: &str) -> Option<Kind> {
         match block {
-            GENERATOR => Some(Kind::Generator),
+            GENERATOR => Some(Kind::Generator(Tier::Basic)),
+            REINFORCED_GENERATOR => Some(Kind::Generator(Tier::Reinforced)),
+            OVERCHARGED_GENERATOR => Some(Kind::Generator(Tier::Overcharged)),
             BATTERY => Some(Kind::Battery),
             CABLE => Some(Kind::Cable),
+            CRUSHER => Some(Kind::Machine(Machine::Crusher)),
+            SMELTER => Some(Kind::Machine(Machine::Smelter)),
             _ => None,
         }
     }
@@ -38,10 +138,10 @@ impl Kind {
     /// out per call.
     pub fn buffer(self) -> Buffer {
         match self {
-            Kind::Generator => Buffer {
-                capacity: 50_000,
+            Kind::Generator(tier) => Buffer {
+                capacity: tier.capacity(),
                 max_insert: 0,
-                max_extract: GENERATOR_PUSH,
+                max_extract: tier.push(),
             },
             Kind::Battery => Buffer {
                 capacity: 1_000_000,
@@ -53,14 +153,20 @@ impl Kind {
                 max_insert: CABLE_RATE,
                 max_extract: CABLE_RATE,
             },
+            Kind::Machine(_) => Buffer {
+                capacity: MACHINE_CAPACITY,
+                max_insert: MACHINE_INSERT,
+                max_extract: 0,
+            },
         }
     }
 
     /// The menu the block opens, with its slot and data slot counts.
     pub fn menu(self) -> Option<(&'static str, usize, usize)> {
         match self {
-            Kind::Generator => Some((GENERATOR_MENU, 1, GENERATOR_DATA)),
+            Kind::Generator(_) => Some((GENERATOR_MENU, 1, GENERATOR_DATA)),
             Kind::Battery => Some((BATTERY_MENU, 1, BATTERY_DATA)),
+            Kind::Machine(_) => Some((MACHINE_MENU, 2, MACHINE_DATA)),
             Kind::Cable => None,
         }
     }
@@ -73,19 +179,19 @@ pub struct Buffer {
     pub max_extract: i32,
 }
 
-/// Energy (FE) a burning generator makes each tick.
-pub const GENERATOR_RATE: i32 = 40;
-/// The most a generator pushes out each tick, over all its sides.
-pub const GENERATOR_PUSH: i32 = 400;
 /// The most a battery takes in or gives out each tick.
 pub const BATTERY_RATE: i32 = 2_000;
 /// The most a cable moves each tick.
 pub const CABLE_RATE: i32 = 1_000;
 
-/// The generator menu's data slots: energy (2), capacity (2), burn, burn total.
-pub const GENERATOR_DATA: usize = 6;
+/// The generator menu's data slots: energy (2), capacity (2), burn, burn
+/// total, energy per tick.
+pub const GENERATOR_DATA: usize = 7;
 /// The battery menu's data slots: energy (2), capacity (2).
 pub const BATTERY_DATA: usize = 4;
+/// The machine menu's data slots: energy (2), capacity (2), progress, time,
+/// energy per tick while working.
+pub const MACHINE_DATA: usize = 7;
 
 /// The overworld woods, whose wooden blocks and items burn (the Nether's
 /// crimson and warped don't, as in vanilla).
@@ -189,10 +295,9 @@ impl GeneratorTick {
 
 /// One tick: burn what is burning and light the next fuel, but only while
 /// the buffer has room for what a tick makes, so no fuel is wasted.
-pub fn generator_tick(mut state: Generator, fuel: Option<&str>) -> GeneratorTick {
-    let capacity = Kind::Generator.buffer().capacity;
+pub fn generator_tick(tier: Tier, mut state: Generator, fuel: Option<&str>) -> GeneratorTick {
     let mut consumed = false;
-    let room = state.energy + GENERATOR_RATE <= capacity;
+    let room = state.energy + tier.rate() <= tier.capacity();
     if !room {
         return GeneratorTick {
             state,
@@ -210,8 +315,10 @@ pub fn generator_tick(mut state: Generator, fuel: Option<&str>) -> GeneratorTick
     }
     let burned = state.burn > 0;
     if burned {
-        state.burn -= 1;
-        state.energy += GENERATOR_RATE;
+        // The last fuel ticks of a fast tier make only what they burn.
+        let used = state.burn.min(tier.speed());
+        state.burn -= used;
+        state.energy += used * tier.per_fuel_tick();
         if state.burn == 0 {
             state.burn_total = 0;
         }
@@ -220,6 +327,78 @@ pub fn generator_tick(mut state: Generator, fuel: Option<&str>) -> GeneratorTick
         state,
         consumed,
         burned,
+    }
+}
+
+/// A machine's state between ticks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MachineState {
+    pub energy: i32,
+    /// Ticks worked on the current item.
+    pub progress: i32,
+}
+
+/// What a machine could make of its input now: the recipe's time, and
+/// whether its result fits the output slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Work {
+    pub time: i32,
+    pub fits: bool,
+}
+
+/// What one machine tick did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MachineTick {
+    pub state: MachineState,
+    /// It worked this tick, using energy.
+    pub running: bool,
+    /// The item is done: take one input, add the result.
+    pub done: bool,
+}
+
+/// One tick: work on the input while there is a recipe, room for its
+/// result and energy for the tick. No recipe or no room starts over; too
+/// little energy only waits.
+pub fn machine_tick(machine: Machine, mut state: MachineState, work: Option<Work>) -> MachineTick {
+    let idle = |state| MachineTick {
+        state,
+        running: false,
+        done: false,
+    };
+    let Some(work) = work.filter(|w| w.fits) else {
+        state.progress = 0;
+        return idle(state);
+    };
+    if state.energy < machine.rate() {
+        return idle(state);
+    }
+    state.energy -= machine.rate();
+    state.progress += 1;
+    let done = state.progress >= work.time.max(1);
+    if done {
+        state.progress = 0;
+    }
+    MachineTick {
+        state,
+        running: true,
+        done,
+    }
+}
+
+/// Whether `count` of `item` join what the output slot holds (`output`:
+/// its item and count), up to a stack of `max`.
+pub fn output_fits(output: Option<(&str, u32)>, item: &str, count: u32, max: u32) -> bool {
+    match output {
+        None => count <= max,
+        Some((held, n)) => held == item && n + count <= max,
+    }
+}
+
+/// A recipe's `time`, the default when it gives none or nonsense.
+pub fn recipe_time(time: Option<i64>) -> i32 {
+    match time {
+        Some(t) if (1..=72_000).contains(&t) => t as i32,
+        _ => MACHINE_TIME,
     }
 }
 
@@ -301,11 +480,12 @@ pub fn join32(lo: i32, hi: i32) -> i32 {
     (((hi as u32 & 0xFFFF) << 16) | (lo as u32 & 0xFFFF)) as i32
 }
 
-/// The menu data of a generator.
-pub fn generator_data(state: Generator) -> [i32; GENERATOR_DATA] {
+/// The menu data of a generator; `burning`: it burned this tick.
+pub fn generator_data(tier: Tier, state: Generator, burning: bool) -> [i32; GENERATOR_DATA] {
     let [e0, e1] = split32(state.energy);
-    let [c0, c1] = split32(Kind::Generator.buffer().capacity);
-    [e0, e1, c0, c1, state.burn, state.burn_total]
+    let [c0, c1] = split32(tier.capacity());
+    let rate = if burning { tier.rate() } else { 0 };
+    [e0, e1, c0, c1, state.burn, state.burn_total, rate]
 }
 
 /// The menu data of a battery.
@@ -313,6 +493,16 @@ pub fn battery_data(energy: i32) -> [i32; BATTERY_DATA] {
     let [e0, e1] = split32(energy);
     let [c0, c1] = split32(Kind::Battery.buffer().capacity);
     [e0, e1, c0, c1]
+}
+
+/// The menu data of a machine working on an item of `time` ticks (0: none).
+pub fn machine_data(machine: Machine, tick: MachineTick, time: i32) -> [i32; MACHINE_DATA] {
+    let [e0, e1] = split32(tick.state.energy);
+    let [c0, c1] = split32(MACHINE_CAPACITY);
+    let rate = if tick.running { machine.rate() } else { 0 };
+    // A finished item shows a full arrow for its last tick.
+    let progress = if tick.done { time } else { tick.state.progress };
+    [e0, e1, c0, c1, progress, time, rate]
 }
 
 /// Energy for people: `950 FE`, `12.5 kFE`, `1.00 MFE`.
@@ -350,6 +540,11 @@ pub mod layout {
     pub const ENERGY_BAR: [f32; 4] = [152.0, 17.0, 16.0, 54.0];
     /// The battery's wide bar.
     pub const BATTERY_BAR: [f32; 4] = [62.0, 20.0, 52.0, 50.0];
+    /// A machine's input and output slots, as a furnace's.
+    pub const INPUT_SLOT: [f32; 2] = [56.0, 35.0];
+    pub const OUTPUT_SLOT: [f32; 2] = [116.0, 35.0];
+    /// The arrow between them: x, y, width, height.
+    pub const ARROW: [f32; 4] = [79.0, 39.0, 24.0, 8.0];
 }
 
 #[cfg(test)]
@@ -358,7 +553,7 @@ mod tests {
 
     #[test]
     fn blocks_are_known_by_id() {
-        assert_eq!(Kind::of(GENERATOR), Some(Kind::Generator));
+        assert_eq!(Kind::of(GENERATOR), Some(Kind::Generator(Tier::Basic)));
         assert_eq!(Kind::of(CABLE), Some(Kind::Cable));
         assert_eq!(Kind::of("minecraft:furnace"), None);
     }
@@ -382,10 +577,10 @@ mod tests {
 
     #[test]
     fn generator_lights_fuel_and_makes_energy() {
-        let tick = generator_tick(Generator::default(), Some("minecraft:coal"));
+        let tick = generator_tick(Tier::Basic, Generator::default(), Some("minecraft:coal"));
         assert!(tick.consumed);
         assert!(tick.lit());
-        assert_eq!(tick.state.energy, GENERATOR_RATE);
+        assert_eq!(tick.state.energy, Tier::Basic.rate());
         assert_eq!(tick.state.burn, 1_599);
         assert_eq!(tick.state.burn_total, 1_600);
     }
@@ -397,7 +592,7 @@ mod tests {
             burn: 10,
             burn_total: 1_600,
         };
-        let tick = generator_tick(state, Some("minecraft:coal"));
+        let tick = generator_tick(Tier::Basic, state, Some("minecraft:coal"));
         assert!(!tick.consumed);
         assert_eq!(tick.state.burn, 9);
     }
@@ -409,20 +604,21 @@ mod tests {
             burn: 1,
             burn_total: 100,
         };
-        let tick = generator_tick(state, None);
+        let tick = generator_tick(Tier::Basic, state, None);
         assert!(tick.lit());
         assert_eq!(tick.state.burn, 0);
         assert_eq!(tick.state.burn_total, 0);
-        assert_eq!(tick.state.energy, GENERATOR_RATE);
-        let out = generator_tick(tick.state, None);
+        assert_eq!(tick.state.energy, Tier::Basic.rate());
+        let out = generator_tick(Tier::Basic, tick.state, None);
         assert!(!out.lit());
-        assert_eq!(out.state.energy, GENERATOR_RATE);
+        assert_eq!(out.state.energy, Tier::Basic.rate());
     }
 
     #[test]
     fn full_generator_keeps_its_fuel() {
-        let full = Kind::Generator.buffer().capacity;
+        let full = Kind::Generator(Tier::Basic).buffer().capacity;
         let tick = generator_tick(
+            Tier::Basic,
             Generator {
                 energy: full,
                 burn: 0,
@@ -437,20 +633,20 @@ mod tests {
 
     #[test]
     fn full_generator_pauses_its_fire_and_keeps_the_burn() {
-        let capacity = Kind::Generator.buffer().capacity;
+        let capacity = Kind::Generator(Tier::Basic).buffer().capacity;
         let state = Generator {
             energy: capacity - 10,
             burn: 50,
             burn_total: 100,
         };
-        let tick = generator_tick(state, None);
+        let tick = generator_tick(Tier::Basic, state, None);
         assert!(!tick.lit());
         assert_eq!(tick.state, state);
         let room = Generator {
-            energy: capacity - GENERATOR_RATE,
+            energy: capacity - Tier::Basic.rate(),
             ..state
         };
-        let tick = generator_tick(room, None);
+        let tick = generator_tick(Tier::Basic, room, None);
         assert!(tick.lit());
         assert_eq!(tick.state.energy, capacity);
         assert_eq!(tick.state.burn, 49);
@@ -510,12 +706,16 @@ mod tests {
         let data = battery_data(123_456);
         assert_eq!(join32(data[0], data[1]), 123_456);
         assert_eq!(join32(data[2], data[3]), 1_000_000);
-        let data = generator_data(Generator {
-            energy: 7,
-            burn: 3,
-            burn_total: 9,
-        });
-        assert_eq!(data[4..], [3, 9]);
+        let data = generator_data(
+            Tier::Basic,
+            Generator {
+                energy: 7,
+                burn: 3,
+                burn_total: 9,
+            },
+            true,
+        );
+        assert_eq!(data[4..], [3, 9, 40]);
     }
 
     #[test]
@@ -532,5 +732,159 @@ mod tests {
         assert_eq!(bar(500, 100, 50), 50);
         assert_eq!(bar(1_000_000, 1_000_000, 54), 54);
         assert_eq!(bar(5, 0, 50), 0);
+    }
+
+    #[test]
+    fn tiers_are_known_by_id_and_climb() {
+        assert_eq!(
+            Kind::of(REINFORCED_GENERATOR),
+            Some(Kind::Generator(Tier::Reinforced))
+        );
+        assert_eq!(
+            Kind::of(OVERCHARGED_GENERATOR),
+            Some(Kind::Generator(Tier::Overcharged))
+        );
+        assert_eq!(Kind::of(CRUSHER), Some(Kind::Machine(Machine::Crusher)));
+        assert_eq!(Kind::of(SMELTER), Some(Kind::Machine(Machine::Smelter)));
+        let tiers = [Tier::Basic, Tier::Reinforced, Tier::Overcharged];
+        for pair in tiers.windows(2) {
+            assert!(pair[1].rate() > pair[0].rate());
+            assert!(pair[1].per_fuel_tick() > pair[0].per_fuel_tick());
+            assert!(pair[1].capacity() > pair[0].capacity());
+        }
+        for tier in tiers {
+            assert_eq!(tier.per_fuel_tick() * tier.speed(), tier.rate());
+        }
+    }
+
+    #[test]
+    fn coal_gives_more_in_a_higher_tier() {
+        let total = |tier| {
+            // Drained every tick, as cables would.
+            let (mut state, mut made) = (Generator::default(), 0);
+            let mut fuel = Some("minecraft:coal");
+            loop {
+                let tick = generator_tick(tier, state, fuel);
+                if tick.consumed {
+                    fuel = None;
+                }
+                if !tick.burned {
+                    return made;
+                }
+                made += tick.state.energy;
+                state = Generator {
+                    energy: 0,
+                    ..tick.state
+                };
+            }
+        };
+        assert_eq!(total(Tier::Basic), 1_600 * 40);
+        assert_eq!(total(Tier::Reinforced), 1_600 * 60);
+        assert_eq!(total(Tier::Overcharged), 1_600 * 80);
+    }
+
+    #[test]
+    fn fast_tier_burns_only_what_is_left() {
+        let state = Generator {
+            energy: 0,
+            burn: 3,
+            burn_total: 100,
+        };
+        let tick = generator_tick(Tier::Overcharged, state, None);
+        assert_eq!(tick.state.burn, 0);
+        assert_eq!(tick.state.energy, 3 * 80);
+    }
+
+    #[test]
+    fn machine_works_and_finishes() {
+        let work = Some(Work {
+            time: 3,
+            fits: true,
+        });
+        let mut state = MachineState {
+            energy: 1_000,
+            progress: 0,
+        };
+        for step in 1..=3 {
+            let tick = machine_tick(Machine::Crusher, state, work);
+            assert!(tick.running);
+            assert_eq!(tick.done, step == 3);
+            state = tick.state;
+        }
+        assert_eq!(state.progress, 0);
+        assert_eq!(state.energy, 1_000 - 3 * Machine::Crusher.rate());
+    }
+
+    #[test]
+    fn machine_waits_for_energy_and_starts_over_without_work() {
+        let state = MachineState {
+            energy: 5,
+            progress: 40,
+        };
+        let work = Some(Work {
+            time: 100,
+            fits: true,
+        });
+        let tick = machine_tick(Machine::Smelter, state, work);
+        assert!(!tick.running);
+        assert_eq!(tick.state, state);
+        let full = Some(Work {
+            time: 100,
+            fits: false,
+        });
+        assert_eq!(
+            machine_tick(Machine::Smelter, state, full).state.progress,
+            0
+        );
+        assert_eq!(
+            machine_tick(Machine::Smelter, state, None).state.progress,
+            0
+        );
+    }
+
+    #[test]
+    fn output_fits_one_stack() {
+        assert!(output_fits(None, "horizon_tech:iron_dust", 2, 64));
+        assert!(output_fits(
+            Some(("horizon_tech:iron_dust", 62)),
+            "horizon_tech:iron_dust",
+            2,
+            64
+        ));
+        assert!(!output_fits(
+            Some(("horizon_tech:iron_dust", 63)),
+            "horizon_tech:iron_dust",
+            2,
+            64
+        ));
+        assert!(!output_fits(
+            Some(("horizon_tech:gold_dust", 1)),
+            "horizon_tech:iron_dust",
+            2,
+            64
+        ));
+    }
+
+    #[test]
+    fn recipe_time_falls_back() {
+        assert_eq!(recipe_time(None), MACHINE_TIME);
+        assert_eq!(recipe_time(Some(0)), MACHINE_TIME);
+        assert_eq!(recipe_time(Some(-5)), MACHINE_TIME);
+        assert_eq!(recipe_time(Some(60)), 60);
+    }
+
+    #[test]
+    fn machine_data_shows_a_full_arrow_when_done() {
+        let tick = MachineTick {
+            state: MachineState {
+                energy: 70_000,
+                progress: 0,
+            },
+            running: true,
+            done: true,
+        };
+        let data = machine_data(Machine::Crusher, tick, 100);
+        assert_eq!(join32(data[0], data[1]), 70_000);
+        assert_eq!(data[4..], [100, 100, Machine::Crusher.rate()]);
     }
 }

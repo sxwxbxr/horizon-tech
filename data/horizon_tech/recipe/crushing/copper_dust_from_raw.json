@@ -1,0 +1,8 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "minecraft:raw_copper",
+  "result": {
+    "id": "horizon_tech:copper_dust",
+    "count": 2
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "IPI",
+    "KGK",
+    "IRI"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "P": "minecraft:piston",
+    "K": "horizon_tech:cobalt_ingot",
+    "G": "minecraft:grindstone",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "horizon_tech:crusher"
+  }
+}

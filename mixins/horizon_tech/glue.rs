@@ -8,7 +8,10 @@ use horizon_client::containers::{ModBlockEntity, ModContainer, ModEnergyBuffer};
 use horizon_client::hud::HudBatch;
 use horizon_client::mod_api::NativeScreen;
 use horizon_core::geometry::Direction;
+use horizon_items::items::ItemStack;
 use horizon_world::nbt::{Compound, JavaString, Tag};
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 fn int(nbt: &Compound, key: &str) -> i32 {
     match nbt.get(&JavaString::from(key)) {
@@ -20,6 +23,21 @@ fn int(nbt: &Compound, key: &str) -> i32 {
 fn set_int(entity: &mut ModBlockEntity, key: &str, value: i32) {
     if int(&entity.nbt, key) != value {
         entity.nbt.insert(JavaString::from(key), Tag::Int(value));
+    }
+}
+
+fn string(nbt: &Compound, key: &str) -> String {
+    match nbt.get(&JavaString::from(key)) {
+        Some(Tag::String(v)) => v.to_string().unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
+fn set_string(entity: &mut ModBlockEntity, key: &str, value: &str) {
+    if string(&entity.nbt, key) != value {
+        entity
+            .nbt
+            .insert(JavaString::from(key), Tag::String(JavaString::from(value)));
     }
 }
 
@@ -48,15 +66,23 @@ pub fn container(block: &str, container: &mut Option<ModContainer>) {
     let Some((menu, slots, _)) = m::Kind::of(block).and_then(m::Kind::menu) else {
         return;
     };
-    // Only the generator's fuel slot takes items, from any side. The
-    // battery's one slot is hidden by its screen and reached by no side.
-    let fuel = m::Kind::of(block) == Some(m::Kind::Generator);
-    let side: Vec<usize> = if fuel { vec![0] } else { Vec::new() };
+    // A generator's fuel slot takes items from any side, and a machine's
+    // input; hoppers take a machine's results. The battery's one slot is
+    // hidden by its screen and reached by no side.
+    let (side, inputs, outputs) = match m::Kind::of(block) {
+        Some(m::Kind::Generator(_)) => (vec![0], vec![0], Vec::new()),
+        Some(m::Kind::Machine(_)) => (
+            vec![m::INPUT_SLOT, m::OUTPUT_SLOT],
+            vec![m::INPUT_SLOT],
+            vec![m::OUTPUT_SLOT],
+        ),
+        _ => (Vec::new(), Vec::new(), Vec::new()),
+    };
     *container = Some(ModContainer {
         slots,
         faces: std::array::from_fn(|_| side.clone()),
-        inputs: side.clone(),
-        outputs: Vec::new(),
+        inputs,
+        outputs,
         menu: Some(menu.to_string()),
     });
 }
@@ -119,13 +145,22 @@ pub(super) fn tick(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEnti
         return;
     };
     match kind {
-        m::Kind::Generator => generator(game, pos, entity),
+        m::Kind::Generator(tier) => generator(game, pos, entity, tier),
         m::Kind::Battery => battery(game, pos, entity),
         m::Kind::Cable => cable(game, pos, entity),
+        m::Kind::Machine(machine) => self::machine(game, pos, entity, machine),
     }
 }
 
-fn generator(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
+/// Shows a furnace-like block lit or not (its `lit` state).
+fn show_lit(game: &mut Game<'_>, pos: [i32; 3], lit: bool) {
+    let lit = if lit { "true" } else { "false" };
+    if game.native_block_property(pos, "lit").as_deref() != Some(lit) {
+        game.native_set_block_property(pos, "lit", lit);
+    }
+}
+
+fn generator(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, tier: m::Tier) {
     let before = m::Generator {
         energy: int(&entity.nbt, m::ENERGY_KEY),
         burn: int(&entity.nbt, m::BURN_KEY),
@@ -136,7 +171,7 @@ fn generator(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
         .first()
         .and_then(|s| s.as_ref())
         .map(|s| s.item.to_string());
-    let step = m::generator_tick(before, fuel.as_deref());
+    let step = m::generator_tick(tier, before, fuel.as_deref());
     let mut state = step.state;
     if step.consumed {
         let slot = &mut entity.items[0];
@@ -147,16 +182,113 @@ fn generator(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
             }
         }
     }
-    let out = state.energy.min(m::GENERATOR_PUSH);
+    let out = state.energy.min(tier.push());
     state.energy -= push(game, pos, &[0, 1, 2, 3, 4, 5], out);
     set_int(entity, m::ENERGY_KEY, state.energy);
     set_int(entity, m::BURN_KEY, state.burn);
     set_int(entity, m::BURN_TOTAL_KEY, state.burn_total);
-    set_data(entity, &m::generator_data(state));
-    let lit = if step.lit() { "true" } else { "false" };
-    if game.native_block_property(pos, "lit").as_deref() != Some(lit) {
-        game.native_set_block_property(pos, "lit", lit);
+    set_data(entity, &m::generator_data(tier, state, step.burned));
+    show_lit(game, pos, step.lit());
+}
+
+/// A machine recipe: its result and ticks.
+type Found = Option<(ItemStack, i32)>;
+
+/// What machines found for each input item, by recipe type, with the table
+/// it was found in (a data pack's `/reload` makes a new one).
+#[derive(Default)]
+struct RecipeCache {
+    table: (usize, usize, usize),
+    found: HashMap<String, Found>,
+}
+
+thread_local! {
+    static RECIPES: RefCell<HashMap<&'static str, RecipeCache>> = RefCell::new(HashMap::new());
+}
+
+/// The first recipe of `kind` whose ingredient takes `input`.
+fn find_recipe(game: &Game<'_>, kind: &'static str, input: &ItemStack) -> Found {
+    let recipes = game.native_recipes_of_type(kind);
+    let table = (
+        recipes.as_ptr() as usize,
+        recipes.len(),
+        recipes
+            .first()
+            .map_or(0, |r| std::sync::Arc::as_ptr(&r.json) as usize),
+    );
+    RECIPES.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let cache = cache.entry(kind).or_default();
+        if cache.table != table {
+            cache.table = table;
+            cache.found.clear();
+        }
+        if let Some(found) = cache.found.get(&*input.item) {
+            return found.clone();
+        }
+        let found = recipes.iter().find_map(|r| {
+            let ingredient = game.native_recipe_ingredient(&r.json["ingredient"])?;
+            if !ingredient.test(input) {
+                return None;
+            }
+            let result = game.native_recipe_result(&r.json["result"])?;
+            Some((result, m::recipe_time(r.json["time"].as_i64())))
+        });
+        cache.found.insert(input.item.to_string(), found.clone());
+        found
+    })
+}
+
+/// The most of one item a machine's output slot holds.
+const STACK: u32 = 64;
+
+fn machine(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity, machine: m::Machine) {
+    let mut state = m::MachineState {
+        energy: int(&entity.nbt, m::ENERGY_KEY),
+        progress: int(&entity.nbt, m::PROGRESS_KEY),
+    };
+    let input = entity.items.get(m::INPUT_SLOT).cloned().flatten();
+    // Another item than the one being worked on starts over.
+    let working = input.as_ref().map_or(String::new(), |s| s.item.to_string());
+    if string(&entity.nbt, m::WORKING_KEY) != working {
+        state.progress = 0;
+        set_string(entity, m::WORKING_KEY, &working);
     }
+    let recipe = input
+        .as_ref()
+        .and_then(|s| find_recipe(game, machine.recipe_type(), s));
+    let output = entity.items.get(m::OUTPUT_SLOT).and_then(Option::as_ref);
+    let work = recipe.as_ref().map(|(result, time)| m::Work {
+        time: *time,
+        fits: m::output_fits(
+            output.map(|o| (&*o.item, o.count)),
+            &result.item,
+            result.count,
+            STACK,
+        ) && output.is_none_or(|o| o.damage == result.damage && o.extra == result.extra),
+    });
+    let tick = m::machine_tick(machine, state, work);
+    if tick.done
+        && let Some((result, _)) = &recipe
+        && entity.items.len() > m::OUTPUT_SLOT
+    {
+        let slot = &mut entity.items[m::INPUT_SLOT];
+        if let Some(stack) = slot {
+            stack.count = stack.count.saturating_sub(1);
+            if stack.count == 0 {
+                *slot = None;
+            }
+        }
+        match &mut entity.items[m::OUTPUT_SLOT] {
+            Some(stack) => stack.count += result.count,
+            slot => *slot = Some(result.clone()),
+        }
+    }
+    set_int(entity, m::ENERGY_KEY, tick.state.energy);
+    set_int(entity, m::PROGRESS_KEY, tick.state.progress);
+    let time = work.map_or(0, |w| w.time);
+    set_data(entity, &m::machine_data(machine, tick, time));
+    show_lit(game, pos, tick.running);
 }
 
 fn battery(game: &mut Game<'_>, pos: [i32; 3], entity: &mut ModBlockEntity) {
@@ -214,8 +346,9 @@ pub fn screen(block: &str, screen: &mut Option<NativeScreen>) {
     }
     use m::layout as l;
     let slots = match m::Kind::of(block) {
-        Some(m::Kind::Generator) => vec![Some(l::FUEL_SLOT)],
+        Some(m::Kind::Generator(_)) => vec![Some(l::FUEL_SLOT)],
         Some(m::Kind::Battery) => vec![None],
+        Some(m::Kind::Machine(_)) => vec![Some(l::INPUT_SLOT), Some(l::OUTPUT_SLOT)],
         _ => return,
     };
     *screen = Some(NativeScreen {
@@ -269,7 +402,7 @@ pub(super) fn screen_draw(
         game.native_text(batch, s, [origin[0] + x, origin[1] + y], 0x40_4040, false);
     };
     match kind {
-        m::Kind::Generator => {
+        m::Kind::Generator(_) => {
             draw_bar(game, batch, origin, l::ENERGY_BAR, energy, capacity);
             let (burn, total) = (get(data, 4), get(data, 5));
             let [x, y, w, h] = l::FLAME;
@@ -283,12 +416,7 @@ pub(super) fn screen_draw(
                 );
             }
             text(batch, &m::format_energy(energy), 8.0, 20.0);
-            text(
-                batch,
-                &format!("+{} FE/t", if burn > 0 { m::GENERATOR_RATE } else { 0 }),
-                8.0,
-                32.0,
-            );
+            text(batch, &format!("+{} FE/t", get(data, 6)), 8.0, 32.0);
         }
         m::Kind::Battery => {
             draw_bar(game, batch, origin, l::BATTERY_BAR, energy, capacity);
@@ -299,6 +427,19 @@ pub(super) fn screen_draw(
                 8.0,
                 32.0,
             );
+        }
+        m::Kind::Machine(_) => {
+            draw_bar(game, batch, origin, l::ENERGY_BAR, energy, capacity);
+            let (progress, time) = (get(data, 4), get(data, 5));
+            let [x, y, w, h] = l::ARROW;
+            let (x, y) = (origin[0] + x, origin[1] + y);
+            game.native_fill(batch, [x, y, w, h], 0xFF8B_8B8B);
+            let done = m::bar(progress, time, w as i32) as f32;
+            if done > 0.0 {
+                game.native_fill(batch, [x, y, done, h], 0xFFFF_FFFF);
+            }
+            text(batch, &m::format_energy(energy), 8.0, 20.0);
+            text(batch, &format!("-{} FE/t", get(data, 6)), 8.0, 58.0);
         }
         m::Kind::Cable => {}
     }
