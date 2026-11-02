@@ -51,6 +51,7 @@ Compile it into the game (Linux; Horizon and horizon-mixins at the commits in `c
 git clone https://github.com/horizon-rust/horizon ../horizon
 git clone https://github.com/horizon-rust/horizon-mixins ../horizon-mixins
 git -C ../horizon-mixins checkout ddd9700b21997c95d95ac6ee5ecafe3830cf622a
+cargo fetch --locked --manifest-path ../horizon-mixins/Cargo.toml   # stage builds its CLI offline
 python3 tools/horizon.py stage     # export the pinned Horizon and apply the mixins
 cargo fetch --locked --manifest-path target/mixins/modded/Cargo.toml
 python3 tools/horizon.py check     # cargo check of the game with the mod
