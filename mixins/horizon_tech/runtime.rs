@@ -90,21 +90,77 @@ pub const GENERATOR_DATA: usize = 6;
 /// The battery menu's data slots: energy (2), capacity (2).
 pub const BATTERY_DATA: usize = 4;
 
-/// Ticks one item burns in a generator, as a furnace burns it; 0 for no fuel.
+/// The overworld woods, whose wooden blocks and items burn (the Nether's
+/// crimson and warped don't, as in vanilla).
+const WOODS: [&str; 11] = [
+    "oak",
+    "spruce",
+    "birch",
+    "jungle",
+    "acacia",
+    "dark_oak",
+    "mangrove",
+    "cherry",
+    "pale_oak",
+    "bamboo",
+    "bamboo_mosaic",
+];
+
+/// Ticks a wooden block or item of one of `WOODS` burns, by its suffix.
+fn wooden(name: &str) -> i32 {
+    const KINDS: [(&str, i32); 15] = [
+        ("_chest_boat", 1_200),
+        ("_chest_raft", 1_200),
+        ("_boat", 1_200),
+        ("_raft", 1_200),
+        ("_hanging_sign", 800),
+        ("_planks", 300),
+        ("_log", 300),
+        ("_wood", 300),
+        ("_block", 300),
+        ("_stairs", 300),
+        ("_fence_gate", 300),
+        ("_fence", 300),
+        ("_trapdoor", 300),
+        ("_pressure_plate", 300),
+        ("_slab", 150),
+    ];
+    const SMALL: [(&str, i32); 3] = [("_door", 200), ("_sign", 200), ("_button", 100)];
+    let name = name.strip_prefix("stripped_").unwrap_or(name);
+    for (suffix, ticks) in KINDS.iter().chain(SMALL.iter()) {
+        if let Some(wood) = name.strip_suffix(suffix)
+            && WOODS.contains(&wood)
+        {
+            return *ticks;
+        }
+    }
+    0
+}
+
+/// Ticks one item burns in a generator, as a furnace burns it
+/// (`FuelValues`); 0 for no fuel.
 pub fn burn_ticks(item: &str) -> i32 {
     let Some(name) = item.strip_prefix("minecraft:") else {
         return 0;
     };
     match name {
-        "coal" | "charcoal" => 1_600,
+        "lava_bucket" => 0, // leaves a bucket, which the generator can't give back
         "coal_block" => 16_000,
-        "blaze_rod" => 2_400,
         "dried_kelp_block" => 4_001,
-        "stick" => 100,
+        "blaze_rod" => 2_400,
+        "coal" | "charcoal" => 1_600,
+        "crafting_table" | "cartography_table" | "fletching_table" | "smithing_table" | "loom"
+        | "chest" | "trapped_chest" | "barrel" | "bookshelf" | "chiseled_bookshelf" | "lectern"
+        | "note_block" | "jukebox" | "composter" | "daylight_detector" | "ladder" | "bow"
+        | "crossbow" | "fishing_rod" | "mangrove_roots" => 300,
+        "wooden_sword" | "wooden_pickaxe" | "wooden_axe" | "wooden_shovel" | "wooden_hoe"
+        | "bowl" => 200,
+        "stick" | "dead_bush" | "short_dry_grass" | "tall_dry_grass" => 100,
         "bamboo" | "scaffolding" => 50,
-        _ if name.ends_with("_planks") || name.ends_with("_log") || name.ends_with("_wood") => 300,
-        _ if name.ends_with("_stem") || name.ends_with("_hyphae") => 300,
-        _ => 0,
+        _ if name.ends_with("_sapling") || name.ends_with("_propagule") => 100,
+        _ if name.ends_with("_wool") => 100,
+        _ if name.ends_with("_carpet") => 67,
+        _ => wooden(name),
     }
 }
 
@@ -124,20 +180,30 @@ pub struct GeneratorTick {
     pub state: Generator,
     /// One item of the fuel slot was used.
     pub consumed: bool,
+    /// It burned this tick (a full buffer pauses the fire, keeping its fuel).
+    pub burned: bool,
 }
 
 impl GeneratorTick {
     pub fn lit(&self) -> bool {
-        self.state.burn > 0
+        self.burned
     }
 }
 
-/// One tick: burn what is burning, light the next fuel when the buffer has
-/// room for what it makes. It never makes more than the buffer holds.
+/// One tick: burn what is burning and light the next fuel, but only while
+/// the buffer has room for what a tick makes, so no fuel is wasted.
 pub fn generator_tick(mut state: Generator, fuel: Option<&str>) -> GeneratorTick {
     let capacity = Kind::Generator.buffer().capacity;
     let mut consumed = false;
-    if state.burn <= 0 && state.energy + GENERATOR_RATE <= capacity {
+    let room = state.energy + GENERATOR_RATE <= capacity;
+    if !room {
+        return GeneratorTick {
+            state,
+            consumed,
+            burned: false,
+        };
+    }
+    if state.burn <= 0 {
         let ticks = fuel.map_or(0, burn_ticks);
         if ticks > 0 {
             state.burn = ticks;
@@ -145,14 +211,19 @@ pub fn generator_tick(mut state: Generator, fuel: Option<&str>) -> GeneratorTick
             consumed = true;
         }
     }
-    if state.burn > 0 {
+    let burned = state.burn > 0;
+    if burned {
         state.burn -= 1;
-        state.energy = (state.energy + GENERATOR_RATE).min(capacity);
+        state.energy += GENERATOR_RATE;
         if state.burn == 0 {
             state.burn_total = 0;
         }
     }
-    GeneratorTick { state, consumed }
+    GeneratorTick {
+        state,
+        consumed,
+        burned,
+    }
 }
 
 /// `amount` shared out over targets that each take up to their `room`, as
@@ -299,7 +370,15 @@ mod tests {
     fn fuels_burn_as_long_as_in_a_furnace() {
         assert_eq!(burn_ticks("minecraft:coal"), 1_600);
         assert_eq!(burn_ticks("minecraft:oak_planks"), 300);
-        assert_eq!(burn_ticks("minecraft:crimson_stem"), 300);
+        assert_eq!(burn_ticks("minecraft:oak_slab"), 150);
+        assert_eq!(burn_ticks("minecraft:stripped_cherry_log"), 300);
+        assert_eq!(burn_ticks("minecraft:spruce_fence_gate"), 300);
+        assert_eq!(burn_ticks("minecraft:birch_door"), 200);
+        assert_eq!(burn_ticks("minecraft:acacia_chest_boat"), 1_200);
+        assert_eq!(burn_ticks("minecraft:white_wool"), 100);
+        assert_eq!(burn_ticks("minecraft:crimson_planks"), 0);
+        assert_eq!(burn_ticks("minecraft:crimson_stem"), 0);
+        assert_eq!(burn_ticks("minecraft:stone_slab"), 0);
         assert_eq!(burn_ticks("minecraft:diamond"), 0);
         assert_eq!(burn_ticks("othermod:coal"), 0);
     }
@@ -334,9 +413,13 @@ mod tests {
             burn_total: 100,
         };
         let tick = generator_tick(state, None);
-        assert!(!tick.lit());
+        assert!(tick.lit());
+        assert_eq!(tick.state.burn, 0);
         assert_eq!(tick.state.burn_total, 0);
         assert_eq!(tick.state.energy, GENERATOR_RATE);
+        let out = generator_tick(tick.state, None);
+        assert!(!out.lit());
+        assert_eq!(out.state.energy, GENERATOR_RATE);
     }
 
     #[test]
@@ -356,14 +439,24 @@ mod tests {
     }
 
     #[test]
-    fn generator_never_overfills() {
+    fn full_generator_pauses_its_fire_and_keeps_the_burn() {
         let capacity = Kind::Generator.buffer().capacity;
         let state = Generator {
             energy: capacity - 10,
             burn: 50,
             burn_total: 100,
         };
-        assert_eq!(generator_tick(state, None).state.energy, capacity);
+        let tick = generator_tick(state, None);
+        assert!(!tick.lit());
+        assert_eq!(tick.state, state);
+        let room = Generator {
+            energy: capacity - GENERATOR_RATE,
+            ..state
+        };
+        let tick = generator_tick(room, None);
+        assert!(tick.lit());
+        assert_eq!(tick.state.energy, capacity);
+        assert_eq!(tick.state.burn, 49);
     }
 
     #[test]

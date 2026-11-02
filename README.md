@@ -15,7 +15,7 @@ own names, textures and numbers.
 
 | Block | Recipe | What it does |
 |---|---|---|
-| Coal Generator | iron, copper, furnace, redstone | Burns furnace fuel (coal, charcoal, logs, planks, blaze rods...) for 40 FE/t, stores 50 kFE, pushes up to 400 FE/t into every side |
+| Coal Generator | iron, copper, furnace, redstone | Burns furnace fuels (coal, charcoal, wood, blaze rods, wool... not lava) as long as a furnace would, for 40 FE/t; stores 50 kFE and pauses the fire, keeping the fuel, while full; pushes up to 400 FE/t into every side |
 | Energy Cable (x8) | copper, redstone, copper | Carries up to 1 kFE/t; machines first, then levels out along the line |
 | Battery | iron, copper, redstone blocks, copper block | Stores 1 MFE; takes energy on every side, gives up to 2 kFE/t out of its front |
 
