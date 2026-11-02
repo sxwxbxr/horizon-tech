@@ -1,0 +1,8 @@
+id = "horizon_tech"
+name = "Horizon Tech"
+version = "0.1.0"
+description = "Power generation, ore processing, quarries and storage networks."
+authors = ["Seya"]
+api = "0.2"
+side = "both"
+capabilities = ["registries"]

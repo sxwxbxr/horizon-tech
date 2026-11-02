@@ -1,0 +1,5 @@
+{
+  "title": "Horizon Tech",
+  "icon": "horizon_tech:coal_generator",
+  "items": ["horizon_tech:coal_generator", "horizon_tech:battery", "horizon_tech:energy_cable"]
+}

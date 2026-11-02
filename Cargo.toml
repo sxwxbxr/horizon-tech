@@ -1,0 +1,12 @@
+[package]
+name = "horizon-tech"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Horizon Tech: power, ore processing, quarries and storage for Horizon. The native mod's logic and its tests."
+
+# The mod's logic: the same file the bundle adds to the game as
+# `crate::game::horizon_tech`. glue.rs and the hook helpers only build inside Horizon.
+[lib]
+path = "mixins/horizon_tech/runtime.rs"
