@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo fetch:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(python3 tools/horizon.py:*)",
+      "Bash(python3 tools/package.py:*)",
+      "Bash(python3 tools/textures.py:*)"
+    ]
+  }
+}
