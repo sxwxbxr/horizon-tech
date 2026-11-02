@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "horizon_tech:block/cobalt_block"
+    }
+  }
+}

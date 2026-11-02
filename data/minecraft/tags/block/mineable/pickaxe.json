@@ -1,3 +1,15 @@
 {
-  "values": ["horizon_tech:coal_generator", "horizon_tech:battery", "horizon_tech:energy_cable"]
+  "values": [
+    "horizon_tech:coal_generator",
+    "horizon_tech:reinforced_generator",
+    "horizon_tech:overcharged_generator",
+    "horizon_tech:battery",
+    "horizon_tech:crusher",
+    "horizon_tech:induction_smelter",
+    "horizon_tech:energy_cable",
+    "horizon_tech:cobalt_ore",
+    "horizon_tech:deepslate_cobalt_ore",
+    "horizon_tech:cobalt_block",
+    "horizon_tech:raw_cobalt_block"
+  ]
 }

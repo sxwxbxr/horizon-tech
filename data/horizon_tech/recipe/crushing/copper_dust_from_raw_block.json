@@ -1,0 +1,9 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "minecraft:raw_copper_block",
+  "result": {
+    "id": "horizon_tech:copper_dust",
+    "count": 18
+  },
+  "time": 600
+}

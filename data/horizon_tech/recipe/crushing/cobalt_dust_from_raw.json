@@ -1,0 +1,8 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "horizon_tech:raw_cobalt",
+  "result": {
+    "id": "horizon_tech:cobalt_dust",
+    "count": 2
+  }
+}

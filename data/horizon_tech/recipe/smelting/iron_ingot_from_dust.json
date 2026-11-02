@@ -1,0 +1,7 @@
+{
+  "type": "horizon_tech:smelting",
+  "ingredient": "horizon_tech:iron_dust",
+  "result": {
+    "id": "minecraft:iron_ingot"
+  }
+}

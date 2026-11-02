@@ -1,0 +1,9 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "minecraft:raw_iron_block",
+  "result": {
+    "id": "horizon_tech:iron_dust",
+    "count": 18
+  },
+  "time": 600
+}

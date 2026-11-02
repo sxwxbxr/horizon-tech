@@ -1,0 +1,8 @@
+{
+  "type": "horizon_tech:smelting",
+  "ingredient": "minecraft:cobblestone",
+  "result": {
+    "id": "minecraft:stone"
+  },
+  "time": 60
+}

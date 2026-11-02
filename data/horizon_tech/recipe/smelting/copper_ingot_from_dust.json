@@ -1,0 +1,7 @@
+{
+  "type": "horizon_tech:smelting",
+  "ingredient": "horizon_tech:copper_dust",
+  "result": {
+    "id": "minecraft:copper_ingot"
+  }
+}

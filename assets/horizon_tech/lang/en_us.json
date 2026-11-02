@@ -1,8 +1,23 @@
 {
   "block.horizon_tech.coal_generator": "Coal Generator",
+  "block.horizon_tech.reinforced_generator": "Reinforced Generator",
+  "block.horizon_tech.overcharged_generator": "Overcharged Generator",
   "block.horizon_tech.battery": "Battery",
   "block.horizon_tech.energy_cable": "Energy Cable",
+  "block.horizon_tech.crusher": "Crusher",
+  "block.horizon_tech.induction_smelter": "Induction Smelter",
+  "block.horizon_tech.cobalt_ore": "Cobalt Ore",
+  "block.horizon_tech.deepslate_cobalt_ore": "Deepslate Cobalt Ore",
+  "block.horizon_tech.cobalt_block": "Block of Cobalt",
+  "block.horizon_tech.raw_cobalt_block": "Block of Raw Cobalt",
+  "item.horizon_tech.raw_cobalt": "Raw Cobalt",
+  "item.horizon_tech.cobalt_ingot": "Cobalt Ingot",
+  "item.horizon_tech.cobalt_dust": "Cobalt Dust",
+  "item.horizon_tech.iron_dust": "Iron Dust",
+  "item.horizon_tech.gold_dust": "Gold Dust",
+  "item.horizon_tech.copper_dust": "Copper Dust",
   "itemGroup.horizon_tech.horizon_tech": "Horizon Tech",
-  "container.horizon_tech.generator": "Coal Generator",
-  "container.horizon_tech.battery": "Battery"
+  "container.horizon_tech.generator": "Generator",
+  "container.horizon_tech.battery": "Battery",
+  "container.horizon_tech.machine": "Machine"
 }

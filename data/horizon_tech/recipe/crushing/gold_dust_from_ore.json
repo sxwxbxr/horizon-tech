@@ -1,0 +1,8 @@
+{
+  "type": "horizon_tech:crushing",
+  "ingredient": "#minecraft:gold_ores",
+  "result": {
+    "id": "horizon_tech:gold_dust",
+    "count": 2
+  }
+}

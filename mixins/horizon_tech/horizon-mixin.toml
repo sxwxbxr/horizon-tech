@@ -1,6 +1,6 @@
 [mod]
 id = "horizon_tech"
-version = "0.1.0"
+version = "0.2.0"
 priority = 100
 
 # The commit it was tested on. It uses only the native hook points (`hooks` in
